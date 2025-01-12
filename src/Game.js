@@ -20,10 +20,10 @@ import User from './User.js'
  * - Vampires by district
  */
 export default class Game {
-	constructor(u1, u2, id) {
+	constructor(username, socket, id) {
 		this.gameId = id
 		this.colors = ['Y', 'R', 'B', 'P']
-		this.users = [new User(u1), new User(u2)]
+		this.users = [new User(username, socket)]
 		this.draculaCards = []
 		this.vanHelsingCards = []
 		this.deck = this.initDeck()
@@ -38,12 +38,16 @@ export default class Game {
 		this.currStage = 0
 		this.discardedCards = []
 		this.roleToPlay = 0
+		this.status = 'waiting'
 	}
 
 	start() {
+		console.log('starting game with id: %s', this.gameId)
 		this.colorOrder = this.pickColors()
 		this.pickDracula()
 		this.dealCards()
+
+		this.sendGameStartToPlayers()
 	}
 
 	initDeck() {
@@ -173,6 +177,128 @@ export default class Game {
 	}
 	endStage() {
 		console.log(`If there are enough cards in the discard pile, the stage ends now and we reveal the cards.`)
+	}
+
+	addUser(u, s) {
+		console.log('adding user %s to game id %s.', u, this.gameId)
+
+		this.users.push(new User(u, s))
+		this.status = 'ready'
+
+		// console.log('Current room users:', rooms[room]); // Log all sockets in the room
+		// console.log('Current game users:', games[room].users); // Log all users in the game
+
+		this.start()
+	}
+
+	sendGameStartToPlayers() {
+		const dracula = this.getUserByRole('DRACULA');
+		const ds = dracula.socket;
+		const dc = this.draculaCards;
+	
+		const dobj = {
+			type: 'game',
+			params: {
+				cards: dc,
+				role: 'DRACULA',
+				gameStatus: 'ready',
+				gameId: this.gameId,
+			},
+		};
+	
+		setTimeout(() => {
+			try {
+				if (ds.readyState === WebSocket.OPEN) {
+					ds.send(JSON.stringify(dobj));
+					console.log('Message successfully sent to Dracula.');
+				} else {
+					console.error('Dracula socket is not open.');
+				}
+			} catch (err) {
+				console.error('Error sending message to Dracula:', err);
+			}
+		}, 1000); // Delay ensures the WebSocket connection is fully ready
+			
+		const vanhelsing = this.getUserByRole('VANHELSING');
+		const vhs = vanhelsing.socket;
+		const vhc = this.vanHelsingCards;
+	
+		const vhobj = {
+			type: 'game',
+			params: {
+				cards: vhc,
+				role: 'VANHELSING',
+				gameStatus: 'ready',
+				gameId: this.gameId,
+			},
+		};
+	
+		console.log('Sending update to Van Helsing:', vanhelsing.username);
+		setTimeout(() => {
+			try {
+				if (vhs.readyState === WebSocket.OPEN) {
+					vhs.send(JSON.stringify(vhobj));
+					console.log('Message successfully sent to Van Helsing.');
+				} else {
+					console.error('Van Helsing socket is not open.');
+				}
+			} catch (err) {
+				console.error('Error sending message to Van Helsing:', err);
+			}
+		}, 1000); // Delay ensures the WebSocket connection is fully ready
+	}
+	
+
+	// sendGameStartToPlayers() {
+	// 	// get dracula socket
+	// 	// get dracula cards
+	// 	// send dracula cards and game status ready to dracula
+	// 	const dracula = this.getUserByRole('DRACULA')
+	// 	const ds = dracula.socket
+	// 	const dc = this.draculaCards
+
+	// 	const dobj = {
+	// 		'type': 'game',
+	// 		'params': {
+	// 			'cards': dc,
+	// 			'role': 'DRACULA',
+	// 			'gameStatus': 'ready',
+	// 			'gameId': this.gameId
+	// 		}
+	// 	}
+	// console.log('sending update to dracula (%s)', dracula.username)
+	// 	ds.send(JSON.stringify(dobj))
+
+	// 	// get van helsing socket
+	// 	// get van helsing cards
+	// 	// send van helsing cards and game status ready to van helsing
+	// 	const vanhelsing = this.getUserByRole('VANHELSING')
+	// 	const vhs = vanhelsing.socket
+	// 	const vhc = this.vanHelsingCards
+
+	// 	const vhobj = {
+	// 		'type': 'game',
+	// 		'params': {
+	// 			'cards': vhc,
+	// 			'role': 'VANHELSING',
+	// 			'gameStatus': 'ready',
+	// 			'gameId': this.gameId
+	// 		}
+	// 	}
+	// 	console.log('sending update to van helsing (%s)', vanhelsing.username)
+	// 	if (!vhs) {
+	// 		console.error(`socket for van helsing not defined...`)
+	// 		return
+	// 	}
+	// 	vhs.send(JSON.stringify(vhobj))
+
+	// }
+
+	getUserByRole(role) {
+		if (role == 'DRACULA') {
+			return this.users.filter((u) => u.role == 0)[0]
+		}
+		return this.users.filter((u) => u.role == 1)[0]
 	}
 
 	getRoleToPlay () {

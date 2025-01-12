@@ -3,6 +3,9 @@ import path from 'path';
 import WebSocket, { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 
+import Game from './src/Game.js'
+import User from './src/User.js';
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -21,7 +24,11 @@ const genKey = (len) => {
 const maxClients = 2
 let rooms = {}
 
+let games = {}
+
 // https://www.programonaut.com/how-to-create-websocket-rooms-without-socket-io/
+
+wsServer.on('error', (e) => console.error(e))
 
 wsServer.on('connection', socket => {
 	socket.on('message', (data) => {
@@ -39,6 +46,9 @@ wsServer.on('connection', socket => {
 			case 'leave':
 				leave(params);
 				break;
+			case 'game':
+				game(obj);
+				break;
 			default:
 				generalHandle(obj);
 				break;
@@ -49,6 +59,20 @@ wsServer.on('connection', socket => {
 		leave()
 		// console.log(data)
 	})
+
+	const game = (o) => {
+		if (o.method == 'req') {
+			const game = games[o.params.roomId]
+			let obj = {
+				'type': 'game',
+				'params': {
+					'gameId': null
+				}
+			};
+			if (game) obj.params.gameId = game.id
+			socket.send(JSON.stringify(obj))
+		}
+	}
 
 	const create = (params) => {
 		let room;
@@ -64,9 +88,12 @@ wsServer.on('connection', socket => {
 
 		console.log('Definitive room id: %s', room)
 		rooms[room] = [socket]
+		games[room] = new Game(params.username, socket, room)
+
+		// console.log(games[room])
 		socket['room'] = room
 		// generalInfo()
-		successJoinMsg()
+		successJoinMsg(games[room])
 	}
 
 	const join = (params) => {
@@ -78,10 +105,10 @@ wsServer.on('connection', socket => {
 
 		if (rooms[room].length >= maxClients) {
 			let obj = JSON.stringify({
-				"type": "info",
-				"status": "error",
+				"type": "game",
 				"params": {
-					"description": "Room is full."
+					"roomId": null,
+					"gameStatus": null
 				}
 			})
 			socket.send(obj)
@@ -90,8 +117,13 @@ wsServer.on('connection', socket => {
 
 		rooms[room].push(socket)
 		socket['room'] = room
+		games[room].addUser(params.username, socket)
 
-		successJoinMsg()
+		// console.log('Current room users:', rooms[room]); // Log all sockets in the room
+		// console.log('Current game users:', games[room].users); // Log all users in the game
+
+
+		successJoinMsg(games[room])
 
 		// generalInfo()
 	}
@@ -132,12 +164,13 @@ wsServer.on('connection', socket => {
 		socket.send(JSON.stringify(obj));
 	}
 
-	const successJoinMsg = () => {
+	const successJoinMsg = (game) => {
 		let obj = {
-			"type": "connection",
+			"type": "game",
 			"status": "success",
 			"params": {
-				"roomId": socket['room']
+				"roomId": socket['room'],
+				"gameStatus": game.status
 			}
 		}
 
