@@ -35,7 +35,7 @@ export default class Game {
 			[0,0,0,0],
 			[0,0,0,0]
 		]
-		this.currStage = 0
+		this.currStage = 1
 		this.discardedCards = []
 		this.roleToPlay = 0
 		this.status = 'waiting'
@@ -195,14 +195,29 @@ export default class Game {
 		const dracula = this.getUserByRole('DRACULA');
 		const ds = dracula.socket;
 		const dc = this.draculaCards;
+
+		const vanhelsing = this.getUserByRole('VANHELSING');
+		const vhs = vanhelsing.socket;
+		const vhc = this.vanHelsingCards;
+
+		let opCards;
+
+		opCards = vhc.map((c) => ({
+			color: c.shown ? c.color : 'G',
+			value: c.shown ? c.value : 0
+		}))
 	
 		const dobj = {
 			type: 'game',
 			params: {
 				cards: dc,
+				opCards: opCards,
 				role: 'DRACULA',
 				gameStatus: 'ready',
 				gameId: this.gameId,
+				draculaHealth: this.draculaHealth,
+				currentStage: this.currStage,
+				colors: this.colorOrder
 			},
 		};
 	
@@ -218,18 +233,23 @@ export default class Game {
 				console.error('Error sending message to Dracula:', err);
 			}
 		}, 1000); // Delay ensures the WebSocket connection is fully ready
-			
-		const vanhelsing = this.getUserByRole('VANHELSING');
-		const vhs = vanhelsing.socket;
-		const vhc = this.vanHelsingCards;
 	
+		opCards = dc.map((c) => ({
+			color: c.shown ? c.color : 'G',
+			value: c.shown ? c.value : 0
+		}))
+
 		const vhobj = {
 			type: 'game',
 			params: {
 				cards: vhc,
+				opCards: opCards,
 				role: 'VANHELSING',
 				gameStatus: 'ready',
 				gameId: this.gameId,
+				draculaHealth: this.draculaHealth,
+				currentStage: this.currStage,
+				colors: this.colorOrder
 			},
 		};
 	
